@@ -3,6 +3,9 @@ import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import axios from "axios";
 import NavigationBar from "@/components/NavigationBar";
+import Modal from "react-modal";
+import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/router";
 
 const statusColors = {
   pending: "#f7b500",
@@ -14,6 +17,8 @@ const statusColors = {
 const UserOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [expandedOrder, setExpandedOrder] = useState(null);
+  const { addToCart, clearCart } = useCart();
+  const router = useRouter();
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -30,6 +35,35 @@ const UserOrdersPage = () => {
     };
     fetchOrders();
   }, []);
+
+  const handleCancel = async (orderId) => {
+    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+    const token = localStorage.getItem("userToken");
+    try {
+      await axios.delete("/api/user/orders", {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { orderId },
+      });
+      setOrders((prev) => prev.map(o => o.orderId === orderId ? { ...o, status: "cancelled" } : o));
+      alert("Order cancelled successfully.");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to cancel order.";
+      alert(msg);
+    }
+  };
+
+  const handleEditClick = (order) => {
+    clearCart();
+    // Add all items to cart
+    order.items.forEach(item => {
+      // If menuItemId is not present, fallback to name+price as unique
+      addToCart({
+        ...item,
+        menuItemId: item.menuItemId || `${item.name}-${item.price}`,
+      });
+    });
+    router.push("/users/cart");
+  };
 
   return (
     <>
@@ -61,6 +95,9 @@ const UserOrdersPage = () => {
                       <span><b>Email:</b> {order.customerEmail}</span>
                     </InfoRow>
                     <InfoRow>
+                      <span><b>Restaurant:</b> {order.restaurantName || 'N/A'}</span>
+                    </InfoRow>
+                    <InfoRow>
                       <span><b>Phone:</b> {order.customerPhone}</span>
                       <span><b>Address:</b> {order.customerAddress}</span>
                     </InfoRow>
@@ -78,6 +115,20 @@ const UserOrdersPage = () => {
                       <span>Subtotal:</span>
                       <span>Rs. {order.totalPrice.toFixed(2)}</span>
                     </OrderSummary>
+                    <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+                      {order.status === "pending" && (
+                        <button style={{ background: '#f44336', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', cursor: 'pointer' }}
+                          onClick={() => handleCancel(order.orderId)}>
+                          Cancel
+                        </button>
+                      )}
+                      {["pending", "accepted"].includes(order.status) && (
+                        <button style={{ background: '#2196f3', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', cursor: 'pointer' }}
+                          onClick={() => handleEditClick(order)}>
+                          Edit & Re-Order
+                        </button>
+                      )}
+                    </div>
                   </OrderDetails>
                 )}
               </OrderCard>

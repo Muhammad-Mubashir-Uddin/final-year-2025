@@ -1,9 +1,29 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useRouter } from "next/router";
+import { FaBan } from "react-icons/fa";
 
 const RestaurantLayout = ({ children }) => {
   const router = useRouter();
+  const [restaurantName, setRestaurantName] = useState("");
+
+  useEffect(() => {
+    async function fetchRestaurantName() {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        const res = await fetch("/api/resturant/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setRestaurantName(data?.restaurant?.restaurant?.name || data?.restaurant?.user?.name || "");
+      } catch (err) {
+        // ignore
+      }
+    }
+    fetchRestaurantName();
+  }, []);
 
   // Sidebar navigation items
   const menuItems = [
@@ -109,6 +129,11 @@ const RestaurantLayout = ({ children }) => {
       path: "/resturant/rejectedOrders",
     },
     {
+      name: "Cancelled Orders",
+      icon: <FaBan style={{ color: '#f44336' }} />,
+      path: "/resturant/cancelledOrders",
+    },
+    {
       name: "Profile",
       icon: (
         <svg
@@ -185,7 +210,7 @@ const RestaurantLayout = ({ children }) => {
   return (
     <RestaurantLayoutStyled>
       <aside className="sidebar">
-        <h2>Restaurant</h2>
+        <h2 className="restaurant-name">{restaurantName || 'Restaurant'}</h2>
         <ul>
           {menuItems.map((item) => (
             <li
@@ -250,6 +275,15 @@ const RestaurantLayoutStyled = styled.div`
       font-size: 24px;
       margin-bottom: 30px;
       font-weight: 700;
+    }
+
+    .restaurant-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #2196f3;
+      margin-bottom: 18px;
+      margin-top: -8px;
+      letter-spacing: 0.5px;
     }
 
     ul {

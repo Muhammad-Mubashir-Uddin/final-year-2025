@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const user = await User.findById(decoded.id);
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { cartItems, userInfo, orderType } = req.body;
+    const { cartItems, userInfo, orderType, orderId } = req.body;
     if (!cartItems?.length)
       return res.status(400).json({ message: "Cart is empty" });
 
@@ -77,52 +77,85 @@ export default async function handler(req, res) {
       );
       const restaurant = await Resturant.findById(restaurantId);
       if (!restaurant) continue;
-
-      // Generate a new ObjectId for orderId
-      const orderId = new mongoose.Types.ObjectId();
-
-      // User order (orderHistory)
-      const userOrder = {
-        restaurantId: restaurant._id,
-        orderId,
-        orderNumber,
-        items: items.map((i) => ({
+      // Find existing order if orderId is provided
+      let userOrder;
+      if (orderId) {
+        userOrder = user.orderHistory.find(o => o.orderId && o.orderId.toString() === orderId);
+      }
+      if (userOrder) {
+        // Update existing order
+        userOrder.items = items.map((i) => ({
           name: i.name,
           quantity: i.quantity,
           price: i.price,
-        })),
-        totalPrice,
-        orderDate,
-        status: "pending",
-        orderType: orderType || "dineIn",
-      };
-
-      // Restaurant order (orders array)
-      const restaurantOrder = {
-        _id: orderId,
-        orderNumber,
-        customer: {
-          name: customerInfo.firstName + " " + customerInfo.lastName,
-          phone: customerInfo.phoneNo,
-          email: customerInfo.email,
-          address: customerInfo.address,
-        },
-        items: items.map((i) => ({
+        }));
+        userOrder.totalPrice = totalPrice;
+        userOrder.orderDate = orderDate;
+        userOrder.status = "pending";
+        userOrder.orderType = orderType || "dineIn";
+        userOrder.restaurantName = restaurant.restaurant.name;
+      } else {
+        // Generate a new ObjectId for orderId
+        const newOrderId = new mongoose.Types.ObjectId();
+        // User order (orderHistory)
+        userOrder = {
+          restaurantId: restaurant._id,
+          orderId: newOrderId,
+          orderNumber,
+          items: items.map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            price: i.price,
+          })),
+          totalPrice,
+          orderDate,
+          status: "pending",
+          orderType: orderType || "dineIn",
+          restaurantName: restaurant.restaurant.name,
+        };
+        user.orderHistory.push(userOrder);
+      }
+      if (userUpdated) await user.save();
+      else await user.save();
+      // Update or add restaurant order
+      let restOrder;
+      if (orderId) {
+        restOrder = restaurant.restaurant.orders.find(o => o._id && o._id.toString() === orderId);
+      }
+      if (restOrder) {
+        restOrder.items = items.map((i) => ({
           menuItemId: i.menuItemId ? i.menuItemId : undefined,
           name: i.name,
           price: i.price,
           quantity: i.quantity,
-        })),
-        totalPrice,
-        status: "pending",
-        orderDate,
-        orderType: orderType || "dineIn",
-      };
-
-      user.orderHistory.push(userOrder);
-      if (userUpdated) await user.save();
-      else await user.save();
-      restaurant.restaurant.orders.push(restaurantOrder);
+        }));
+        restOrder.totalPrice = totalPrice;
+        restOrder.status = "pending";
+        restOrder.orderDate = orderDate;
+        restOrder.orderType = orderType || "dineIn";
+      } else {
+        const restaurantOrder = {
+          _id: userOrder.orderId,
+          orderNumber,
+          customer: {
+            name: customerInfo.firstName + " " + customerInfo.lastName,
+            phone: customerInfo.phoneNo,
+            email: customerInfo.email,
+            address: customerInfo.address,
+          },
+          items: items.map((i) => ({
+            menuItemId: i.menuItemId ? i.menuItemId : undefined,
+            name: i.name,
+            price: i.price,
+            quantity: i.quantity,
+          })),
+          totalPrice,
+          status: "pending",
+          orderDate,
+          orderType: orderType || "dineIn",
+        };
+        restaurant.restaurant.orders.push(restaurantOrder);
+      }
       restaurant.restaurant.totalRevenue += totalPrice;
       restaurant.restaurant.totalOrders += 1;
       await restaurant.save();
