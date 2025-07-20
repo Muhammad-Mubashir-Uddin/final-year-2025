@@ -40,7 +40,7 @@ export default function dashboard() {
         </svg>
       ),
       Name: "Revenue Generated",
-      numbers: "$80,000",
+      numbers: "Rs. 80,000",
     },
     {
       id: 2,

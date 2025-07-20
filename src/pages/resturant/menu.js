@@ -173,7 +173,7 @@ export default function MenuPage() {
                 <tr key={item._id}>
                   <td>{item.name}</td>
                   <td>{item.category}</td>
-                  <td>${item.price}</td>
+                  <td>Rs. {item.price}</td>
                   <td>
                     <AvailabilityButton
                       available={item.isAvailable}
